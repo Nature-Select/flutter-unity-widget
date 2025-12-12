@@ -25,8 +25,9 @@ public class FLTUnityWidgetController: NSObject, FLTUnityOptionsSink, FlutterPla
     ) {
         self._rootView = FLTUnityView(frame: frame)
         super.init()
-
-        globalControllers.append(self)
+        
+        self.registrar = registrar
+        addGlobalController(self)
 
         self.viewId = viewId
 
@@ -125,11 +126,12 @@ public class FLTUnityWidgetController: NSObject, FLTUnityOptionsSink, FlutterPla
 
         let unityView = GetUnityPlayerUtils().ufw?.appController()?.rootView
         if _rootView == unityView?.superview {
-            if globalControllers.isEmpty {
+            let controllers = getGlobalControllers()
+            if controllers.isEmpty {
                 unityView?.removeFromSuperview()
                 unityView?.superview?.layoutIfNeeded()
             } else {
-                globalControllers.last?.reattachView()
+                controllers.last?.reattachView()
             }
         }
         GetUnityPlayerUtils().resume()
@@ -140,9 +142,7 @@ public class FLTUnityWidgetController: NSObject, FLTUnityOptionsSink, FlutterPla
             return
         }
 
-        globalControllers.removeAll{ value in
-            return value == self
-        }
+        removeGlobalController(self)
 
         channel?.setMethodCallHandler(nil)
         removeViewIfNeeded()
@@ -152,13 +152,15 @@ public class FLTUnityWidgetController: NSObject, FLTUnityOptionsSink, FlutterPla
     
     /// Handles messages from unity in the current view
     func handleMessage(message: String) {
-        self.channel?.invokeMethod("events#onUnityMessage", arguments: message)
+        if _disposed { return }
+        channel?.invokeMethod("events#onUnityMessage", arguments: message)
     }
     
     
     /// Handles scene changed event from unity in the current view
     func handleSceneChangeEvent(info: Dictionary<String, Any>) {
-        self.channel?.invokeMethod("events#onUnitySceneLoaded", arguments: info)
+        if _disposed { return }
+        channel?.invokeMethod("events#onUnitySceneLoaded", arguments: info)
     }
     
     /// Post messages to unity from flutter
@@ -178,5 +180,9 @@ public class FLTUnityWidgetController: NSObject, FLTUnityOptionsSink, FlutterPla
             result(FlutterError(code: "-1", message: "iOS could not extract " +
                    "flutter arguments in method: (postMessage)", details: nil))
         }
+    }
+    
+    deinit {
+        removeGlobalController(self)
     }
 }

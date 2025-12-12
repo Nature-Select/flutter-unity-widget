@@ -50,7 +50,32 @@ func UnityFrameworkLoad() -> UnityFramework? {
 }
 
 /*********************************** GLOBAL FUNCS & VARS START**************************************/
-public var globalControllers: Array<FLTUnityWidgetController> = [FLTUnityWidgetController]()
+final class WeakUnityControllerBox {
+    weak var controller: FLTUnityWidgetController?
+
+    init(_ controller: FLTUnityWidgetController) {
+        self.controller = controller
+    }
+}
+
+var globalControllers: [WeakUnityControllerBox] = []
+
+func addGlobalController(_ controller: FLTUnityWidgetController) {
+    globalControllers.append(WeakUnityControllerBox(controller))
+    globalControllers.removeAll { $0.controller == nil }
+}
+
+func removeGlobalController(_ controller: FLTUnityWidgetController) {
+    globalControllers.removeAll { box in
+        guard let c = box.controller else { return true }
+        return c === controller
+    }
+}
+
+func getGlobalControllers() -> [FLTUnityWidgetController] {
+    globalControllers.removeAll { $0.controller == nil }
+    return globalControllers.compactMap { $0.controller }
+}
 
 private var unityPlayerUtils: UnityPlayerUtils? = nil
 func GetUnityPlayerUtils() -> UnityPlayerUtils {
@@ -172,6 +197,10 @@ var sharedApplication: UIApplication?
         if !self._isUnityReady {
             return
         }
+
+        if notification?.name == UIApplication.willTerminateNotification {
+            globalControllers.removeAll()
+        }
         
         let unityAppController = self.ufw?.appController() as? UnityAppController
         let application = UIApplication.shared
@@ -274,7 +303,7 @@ var sharedApplication: UIApplication?
     /// the controller handler methods
     @objc
     func unityMessageHandlers(_ message: UnsafePointer<Int8>?) {
-        for c in globalControllers {
+        for c in getGlobalControllers() {
             if let strMsg = message {
                 c.handleMessage(message: String(utf8String: strMsg) ?? "")
             } else {
@@ -299,7 +328,7 @@ var sharedApplication: UIApplication?
                 "isValid": validVal,
             ]
 
-            for c in globalControllers {
+            for c in getGlobalControllers() {
                 c.handleSceneChangeEvent(info: addObject)
             }
         }
