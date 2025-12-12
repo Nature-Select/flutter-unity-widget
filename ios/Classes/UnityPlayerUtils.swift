@@ -103,6 +103,7 @@ var sharedApplication: UIApplication?
     private var _isUnityPaused = false
     private var _isUnityReady = false
     private var _isUnityLoaded = false
+    private var _isTerminating = false
     
     // 添加观察者属性
     private var unityReadyObserver: NSObjectProtocol?
@@ -194,12 +195,13 @@ var sharedApplication: UIApplication?
     }
     
     @objc func handleAppStateDidChange(notification: Notification?) {
-        if !self._isUnityReady {
-            return
+        if notification?.name == UIApplication.willTerminateNotification {
+            _isTerminating = true
+            globalControllers.removeAll()
         }
 
-        if notification?.name == UIApplication.willTerminateNotification {
-            globalControllers.removeAll()
+        if !self._isUnityReady {
+            return
         }
         
         let unityAppController = self.ufw?.appController() as? UnityAppController
@@ -303,6 +305,9 @@ var sharedApplication: UIApplication?
     /// the controller handler methods
     @objc
     func unityMessageHandlers(_ message: UnsafePointer<Int8>?) {
+        if _isTerminating {
+            return
+        }
         for c in getGlobalControllers() {
             if let strMsg = message {
                 c.handleMessage(message: String(utf8String: strMsg) ?? "")
@@ -313,6 +318,9 @@ var sharedApplication: UIApplication?
     }
 
     func unitySceneLoadedHandlers(name: UnsafePointer<Int8>?, buildIndex: UnsafePointer<Int32>?, isLoaded: UnsafePointer<Bool>?, isValid: UnsafePointer<Bool>?) {
+        if _isTerminating {
+            return
+        }
         if let sceneName = name,
            let bIndex = buildIndex,
            let loaded = isLoaded,
