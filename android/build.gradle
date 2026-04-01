@@ -26,6 +26,10 @@ rootProject.allprojects {
         flatDir {
             dirs "libs"
         }
+        // prebuilt 模式: AAR 在 app/libs 中
+        flatDir {
+            dirs "${rootProject.projectDir}/app/libs"
+        }
     }
 }
 
@@ -64,8 +68,16 @@ def lifecycle_version = '2.4.1'
 def annotation_version = '1.3.0'
 
 dependencies {
-    implementation project(':unityLibrary')
-    implementation(name: 'unity-classes', ext:'jar')
+    // 动态检测: source 模式用子项目依赖，prebuilt 模式用 AAR
+    def unityProject = rootProject.findProject(':unityLibrary')
+    if (unityProject != null) {
+        implementation project(':unityLibrary')
+        implementation(name: 'unity-classes', ext:'jar')
+    } else {
+        // prebuilt 模式: app 已通过 fileTree 引入 AAR 和 JAR，这里只需编译期可见
+        compileOnly(name: 'unityLibrary', ext: 'aar')
+        compileOnly(name: 'unity-classes', ext: 'jar')
+    }
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation "androidx.lifecycle:lifecycle-common:$lifecycle_version"
